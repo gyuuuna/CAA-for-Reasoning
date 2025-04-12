@@ -14,7 +14,7 @@ import matplotlib.cm as cm
 import numpy as np
 import argparse
 from steering_settings import SteeringSettings
-from behaviors import ANALYSIS_PATH, HUMAN_NAMES, get_results_dir, get_analysis_dir, ALL_BEHAVIORS
+from behaviors import ANALYSIS_PATH, HUMAN_NAMES, get_results_ras_dir, get_analysis_dir, ALL_BEHAVIORS
 from utils.helpers import set_plotting_settings
 
 set_plotting_settings()
@@ -24,7 +24,7 @@ def get_data(
     multiplier: int,
     settings: SteeringSettings,
 ) -> Dict[str, Any]:
-    directory = get_results_dir(settings.behavior)
+    directory = get_results_ras_dir(settings.behavior)
     if settings.type == "open_ended":
         directory = directory.replace("results", os.path.join("results", "open_ended_scores"))
     filenames = settings.filter_result_files_by_suffix(
@@ -322,6 +322,7 @@ def plot_ab_data_per_layer(
         for layer in sorted(layers):
             results = get_data(layer, multiplier, settings)
             avg_key_prob = get_avg_key_prob(results, "answer_matching_behavior")
+            print(f"Result {multiplier} for {avg_key_prob}")
             res.append(avg_key_prob)
         all_results.append(res)
         plt.plot(
@@ -409,6 +410,74 @@ def plot_effect_on_behaviors(
                 f.write(f"{all_results[idx]}\t")
             f.write("\n")
 
+def plot_layer_sweeps_pos(
+    layers: List[int], behaviors: List[str], settings: SteeringSettings, title: str = None
+):
+    plt.clf()
+    plt.figure(figsize=(5, 3))
+    all_results = []
+    save_to = os.path.join(
+        ANALYSIS_PATH,
+        f"LAYER_SWEEPS_{settings.make_result_save_suffix()}.png",
+    )
+    for behavior in behaviors:
+        if "coordinate" in behavior:
+            continue
+        settings.behavior = behavior
+        pos_per_layer = []
+        base_per_layer = []
+        for layer in sorted(layers):
+            base_res = get_avg_key_prob(get_data(layer, 0, settings), "answer_matching_behavior")
+            pos_res = get_avg_key_prob(get_data(layer, 1, settings), "answer_matching_behavior")
+            base_per_layer.append(base_res)
+            pos_per_layer.append(pos_res)
+            print(f"Result 0: {base_res}, 1: {pos_res}")
+        all_results.append((pos_per_layer, base_per_layer))
+        plt.plot(
+            sorted(layers),
+            pos_per_layer,
+            linestyle="solid",
+            linewidth=2,
+            color="#377eb8",
+        )
+        plt.plot(
+            sorted(layers),
+            base_per_layer,
+            linestyle="solid",
+            linewidth=2,
+            color="#ff7f00",
+        )
+
+    plt.plot(
+        [],
+        [],
+        linestyle="solid",
+        linewidth=2,
+        color="#377eb8",
+        label="Positive steering",
+    )
+    plt.plot(
+        [],
+        [],
+        linestyle="solid",
+        linewidth=2,
+        color="#ff7f00",
+        label="Baseline",
+    )
+
+    # use % formatting for y axis
+    plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.0%}"))
+    plt.xlabel("Layer")
+    plt.ylabel("$\Delta$ p(answer matching behavior)")
+    if not title:
+        plt.title(f"Per-layer CAA effect: {settings.get_formatted_model_name()}")
+    else:
+        plt.title(title)
+    plt.xticks(ticks=sorted(layers)[::5], labels=sorted(layers)[::5])
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(save_to, format="png")
+
 def plot_layer_sweeps(
     layers: List[int], behaviors: List[str], settings: SteeringSettings, title: str = None
 ):
@@ -431,6 +500,7 @@ def plot_layer_sweeps(
             neg_res = get_avg_key_prob(get_data(layer, -1, settings), "answer_matching_behavior") - base_res
             pos_per_layer.append(pos_res)
             neg_per_layer.append(neg_res)
+            # print(f"Result 0: {base_res}, 1: {base_res+pos_res}, -1: {base_res+neg_res}")
         all_results.append((pos_per_layer, neg_per_layer))
         plt.plot(
             sorted(layers),
@@ -520,8 +590,11 @@ if __name__ == "__main__":
         plot_finetuning_openended_comparison(steering_settings, args.override_weights[0], args.override_weights[1], args.multipliers, args.layers[0])
         exit(0)
 
-    if steering_settings.type == "ab":
+    if steering_settings.type == "ab" and -1 in args.multipliers:
         plot_layer_sweeps(args.layers, args.behaviors, steering_settings, args.title)
+
+    if steering_settings.type == "ab" and 1 in args.multipliers and 0 in args.multipliers:
+        plot_layer_sweeps_pos(args.layers, args.behaviors, steering_settings, args.title)
 
     if len(args.layers) == 1 and steering_settings.type != "truthful_qa":
         plot_effect_on_behaviors(args.layers[0], args.multipliers, args.behaviors, steering_settings, args.title)

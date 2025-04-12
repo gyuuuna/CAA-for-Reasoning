@@ -15,11 +15,11 @@ from dotenv import load_dotenv
 from llama_wrapper import LlamaWrapper
 import argparse
 from typing import List
-from utils.tokenize import tokenize_llama_base, tokenize_llama_chat
+from utils.tokenize import tokenize_llama_prompt
 from behaviors import (
     get_vector_dir,
     get_activations_dir,
-    get_ab_data_path,
+    get_cot_data_path,
     get_vector_path,
     get_activations_path,
     ALL_BEHAVIORS
@@ -28,6 +28,9 @@ from behaviors import (
 load_dotenv()
 
 HUGGINGFACE_TOKEN = os.getenv("HF_TOKEN")
+
+COT_PROMPT = "Answer thinking step by step:"
+DIRECT_PROMPT = "Answer immediately, without elaborating:"
 
 random.seed(42)
 
@@ -41,19 +44,15 @@ class ComparisonDataset(Dataset):
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.use_chat = use_chat
 
-    def prompt_to_tokens(self, instruction, model_output):
+    def prompt_to_tokens(self, instruction, prompt):
         if self.use_chat:
-            tokens = tokenize_llama_chat(
+            tokens = tokenize_llama_prompt(
                 self.tokenizer,
                 user_input=instruction,
-                model_output=model_output,
+                prompt=prompt,
             )
         else:
-            tokens = tokenize_llama_base(
-                self.tokenizer,
-                user_input=instruction,
-                model_output=model_output,
-            )
+            raise NotImplementedError()
         return t.tensor(tokens).unsqueeze(0)
 
     def __len__(self):
@@ -61,15 +60,10 @@ class ComparisonDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.data[idx]
-        p_text = item["answer_matching_behavior"]
-        n_text = item["answer_not_matching_behavior"]
-
-        # if isinstance(n_text, list):
-        #     n_text = random.choice(n_text)
 
         q_text = item["question"]
-        p_tokens = self.prompt_to_tokens(q_text, p_text)
-        n_tokens = self.prompt_to_tokens(q_text, n_text)
+        p_tokens = self.prompt_to_tokens(q_text, COT_PROMPT)
+        n_tokens = self.prompt_to_tokens(q_text, DIRECT_PROMPT)
         return p_tokens, n_tokens
 
 def generate_save_vectors_for_behavior(
@@ -78,7 +72,7 @@ def generate_save_vectors_for_behavior(
     behavior: List[str],
     model: LlamaWrapper,
 ):
-    data_path = get_ab_data_path(behavior)
+    data_path = get_cot_data_path(behavior)
     if not os.path.exists(get_vector_dir(behavior)):
         os.makedirs(get_vector_dir(behavior))
     if save_activations and not os.path.exists(get_activations_dir(behavior)):

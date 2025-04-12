@@ -24,7 +24,7 @@ set_plotting_settings()
 def save_activation_projection_pca(behavior: str, layer: int, model_name_path: str, activation_type:str = None):
     title = f"{HUMAN_NAMES[behavior]}, layer {layer}"
     fname = f"pca_{behavior}_layer_{layer}.png"
-    save_dir = os.path.join(get_analysis_dir(behavior), f"pca-{activation_type}" if activation_type else "pca")
+    save_dir = os.path.join(get_analysis_dir(behavior), f"pca34-{activation_type}" if activation_type else "pca34")
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -54,8 +54,10 @@ def save_activation_projection_pca_pos_neg(behavior, activations_pos, activation
     activations_np = activations.cpu().numpy()
 
     # PCA projection
-    pca = PCA(n_components=2)
-    projected_activations = pca.fit_transform(activations_np)
+    pca = PCA(n_components=activations_np.shape[1])
+    pca.fit(activations_np)
+    selected_components = pca.components_[2:4]  # (2, D)
+    projected_activations = activations_np @ selected_components.T 
 
     # Split back
     activations_pos_projected = projected_activations[: activations_pos.shape[0]]
@@ -96,8 +98,10 @@ def save_activation_projection_pca_ab(behavior, activations_pos, activations_neg
     activations_np = activations.cpu().numpy()
 
     # PCA projection
-    pca = PCA(n_components=2)
-    projected_activations = pca.fit_transform(activations_np)
+    pca = PCA(n_components=4)
+    pca.fit(activations_np)
+    selected_components = pca.components_[2:4]  # (2, D)
+    projected_activations = activations_np @ selected_components.T 
 
     # Splitting back into activations1 and activations2
     activations_pos_projected = projected_activations[: activations_pos.shape[0]]

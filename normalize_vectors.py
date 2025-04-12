@@ -14,23 +14,32 @@ def normalize_vectors(model_size: str, is_base: bool, n_layers: int):
         vecs = {}
         new_paths = {}
         for behavior in ALL_BEHAVIORS:
-            vec_path = get_vector_path(behavior, layer, get_model_path(model_size, is_base=is_base))
-            vec = t.load(vec_path)
-            norm = vec.norm().item()
-            vecs[behavior] = vec
-            norms[behavior] = norm
-            new_path = vec_path.replace("vectors", "normalized_vectors")
-            new_paths[behavior] = new_path
+            try:
+                vec_path = get_vector_path(behavior, layer, get_model_path(model_size, is_base=is_base))
+                vec = t.load(vec_path)
+                norm = vec.norm().item()
+                vecs[behavior] = vec
+                norms[behavior] = norm
+                new_path = vec_path.replace("vectors", "normalized_vectors")
+                new_paths[behavior] = new_path
+            except:
+                print(f"% Error occured in getting vector for {behavior}")
         print(norms)
         mean_norm = t.tensor(list(norms.values())).mean().item()
         # normalize all vectors to have the same norm
         for behavior in ALL_BEHAVIORS:
-            vecs[behavior] = vecs[behavior] * mean_norm / norms[behavior]
+            try:
+                vecs[behavior] = vecs[behavior] * mean_norm / norms[behavior]
+            except:
+                print(f"% Error occured in normalizing for {behavior}")
         # save the normalized vectors
         for behavior in ALL_BEHAVIORS:
-            if not os.path.exists(os.path.dirname(new_paths[behavior])):
-                os.makedirs(os.path.dirname(new_paths[behavior]))
-            t.save(vecs[behavior], new_paths[behavior])
+            try:
+                if not os.path.exists(os.path.dirname(new_paths[behavior])):
+                    os.makedirs(os.path.dirname(new_paths[behavior]))
+                t.save(vecs[behavior], new_paths[behavior])
+            except:
+                print(f"% Error occured in saving for {behavior}")
     
     
 if __name__ == "__main__":

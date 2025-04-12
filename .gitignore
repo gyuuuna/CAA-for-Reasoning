@@ -1,4 +1,10 @@
 activations
+./analysis/
+logs.old
+results-all
+results-ras
+normalized_vectors
+multiwoz
 venv
 __pycache__
 .pytest_cache

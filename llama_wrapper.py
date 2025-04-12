@@ -49,6 +49,9 @@ class BlockOutputWrapper(t.nn.Module):
         self.block_out_unembedded = None
 
         self.activations = None
+        self.attn_activations = None
+        self.mlp_activations = None
+
         self.add_activations = None
         self.from_position = None
 
@@ -77,15 +80,17 @@ class BlockOutputWrapper(t.nn.Module):
                 from_pos=self.from_position,
             )
             output = (augmented_output,) + output[1:]
+        # TODO: add_attn_activations, add_mlp_activations
 
-        if not self.save_internal_decodings:
-            return output
+        # if not self.save_internal_decodings:
+        #     return output
 
         # Whole block unembedded
         self.block_output_unembedded = self.unembed_matrix(self.norm(output[0]))
 
         # Self-attention unembedded
         attn_output = self.block.self_attn.activations
+        self.attn_activations = attn_output
         self.attn_out_unembedded = self.unembed_matrix(self.norm(attn_output))
 
         # Intermediate residual unembedded
@@ -94,7 +99,10 @@ class BlockOutputWrapper(t.nn.Module):
 
         # MLP unembedded
         mlp_output = self.block.mlp(self.post_attention_layernorm(attn_output))
+        self.mlp_activations = mlp_output
         self.mlp_out_unembedded = self.unembed_matrix(self.norm(mlp_output))
+
+        self.layer_activations = args[0] + output[0]
 
         return output
 
@@ -104,6 +112,9 @@ class BlockOutputWrapper(t.nn.Module):
     def reset(self):
         self.add_activations = None
         self.activations = None
+        self.attn_activations = None
+        self.mlp_activations = None
+        self.layer_activations = None
         self.block.self_attn.activations = None
         self.from_position = None
         self.calc_dot_product_with = None
@@ -191,6 +202,14 @@ class LlamaWrapper:
 
     def get_last_activations(self, layer):
         return self.model.model.layers[layer].activations
+    
+    def get_last_activations_many(self, layer):
+        return (
+            self.model.model.layers[layer].activations,
+            self.model.model.layers[layer].attn_activations,
+            self.model.model.layers[layer].mlp_activations,
+            self.model.model.layers[layer].layer_activations
+        )
 
     def set_add_activations(self, layer, activations):
         self.model.model.layers[layer].add(activations)
